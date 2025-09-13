@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Админ-панель</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Создание пользователя -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Создать нового пользователя</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('create_user') }}">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <input type="text" name="username" class="form-control" placeholder="Логин" required>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="password" name="password" class="form-control" placeholder="Пароль" required>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" name="fullname" class="form-control" placeholder="ФИО">
+                        </div>
+                        <div class="col-md-1">
+                            <input type="number" name="kibiki" class="form-control" placeholder="Кибики" value="0">
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check">
+                                <input type="checkbox" name="is_admin" class="form-check-input" id="isAdmin">
+                                <label class="form-check-label" for="isAdmin">Админ</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary">Создать</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Список пользователей -->
+        <div class="card">
+            <div class="card-header">
+                <h5>Пользователи</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Логин</th>
+                                <th>ФИО</th>
+                                <th>Кибики</th>
+                                <th>Админ</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user.username }}</td>
+                                <td>
+                                    {% if user.fullname %}
+                                        {{ user.fullname }}
+                                    {% else %}
+                                        <span class="text-muted">Не указано</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user.kibiki }}</td>
+                                <td>{{ 'Да' if user.is_admin else 'Нет' }}</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <!-- Редактировать ФИО -->
+                                        <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                data-bs-toggle="modal" data-bs-target="#editFullnameModal"
+                                                onclick="setUserForFullname('{{ user.username }}', '{{ user.fullname or '' }}')">
+                                            ФИО
+                                        </button>
+                                        
+                                        <!-- Управление кибиками -->
+                                        <button type="button" class="btn btn-sm btn-success" 
+                                                data-bs-toggle="modal" data-bs-target="#addKibikiModal"
+                                                onclick="setUserForAction('{{ user.username }}', 'add')">
+                                            +
+                                        </button>
+                                        
+                                        <button type="button" class="btn btn-sm btn-warning" 
+                                                data-bs-toggle="modal" data-bs-target="#removeKibikiModal"
+                                                onclick="setUserForAction('{{ user.username }}', 'remove')">
+                                            -
+                                        </button>
+                                        
+                                        <button type="button" class="btn btn-sm btn-info" 
+                                                data-bs-toggle="modal" data-bs-target="#setKibikiModal"
+                                                onclick="setUserForAction('{{ user.username }}', 'set')">
+                                            =
+                                        </button>
+                                        
+                                        {% if user.username != session.username %}
+                                        <a href="{{ url_for('delete_user', username=user.username) }}" 
+                                           class="btn btn-sm btn-danger"
+                                           onclick="return confirm('Удалить пользователя {{ user.username }}?')">
+                                            Удалить
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальные окна -->
+        
+        <!-- Редактировать ФИО -->
+        <div class="modal fade" id="editFullnameModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="POST" action="{{ url_for('edit_fullname') }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Редактировать ФИО</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" name="username" id="editUsername">
+                            <div class="mb-3">
+                                <label class="form-label">Пользователь:</label>
+                                <span id="editUsernameDisplay" class="fw-bold"></span>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editFullname" class="form-label">ФИО:</label>
+                                <input type="text" class="form-control" id="editFullname" name="fullname">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Добавить кибики -->
+        <div class="modal fade" id="addKibikiModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="POST" action="{{ url_for('add_kibiki') }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Добавить кибики</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" name="username" id="addUsername">
+                            <div class="mb-3">
+                                <label class="form-label">Пользователь:</label>
+                                <span id="addUsernameDisplay" class="fw-bold"></span>
+                            </div>
+                            <div class="mb-3">
+                                <label for="addAmount" class="form-label">Количество кибиков:</label>
+                                <input type="number" class="form-control" id="addAmount" name="amount" min="1" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-success">Добавить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Удалить кибики -->
+        <div class="modal fade" id="removeKibikiModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="POST" action="{{ url_for('remove_kibiki') }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Удалить кибики</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" name="username" id="removeUsername">
+                            <div class="mb-3">
+                                <label class="form-label">Пользователь:</label>
+                                <span id="removeUsernameDisplay" class="fw-bold"></span>
+                            </div>
+                            <div class="mb-3">
+                                <label for="removeAmount" class="form-label">Количество кибиков:</label>
+                                <input type="number" class="form-control" id="removeAmount" name="amount" min="1" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-warning">Удалить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Установить кибики -->
+        <div class="modal fade" id="setKibikiModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="POST" action="{{ url_for('set_kibiki') }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Установить количество кибиков</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" name="username" id="setUsername">
+                            <div class="mb-3">
+                                <label class="form-label">Пользователь:</label>
+                                <span id="setUsernameDisplay" class="fw-bold"></span>
+                            </div>
+                            <div class="mb-3">
+                                <label for="setAmount" class="form-label">Количество кибиков:</label>
+                                <input type="number" class="form-control" id="setAmount" name="amount" min="0" required>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="submit" class="btn btn-info">Установить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function setUserForAction(username, action) {
+            if (action === 'add') {
+                document.getElementById('addUsername').value = username;
+                document.getElementById('addUsernameDisplay').textContent = username;
+            } else if (action === 'remove') {
+                document.getElementById('removeUsername').value = username;
+                document.getElementById('removeUsernameDisplay').textContent = username;
+            } else if (action === 'set') {
+                document.getElementById('setUsername').value = username;
+                document.getElementById('setUsernameDisplay').textContent = username;
+            }
+        }
+        
+        function setUserForFullname(username, fullname) {
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editUsernameDisplay').textContent = username;
+            document.getElementById('editFullname').value = fullname || '';
+        }
+    </script>
+</body>
+</html>

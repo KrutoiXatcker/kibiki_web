@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Магазин кибиков{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>🛍️ Магазин товаров</h1>
+    <p style="font-size: 1.5rem; color: #667eea; margin-bottom: 30px;">Ваш баланс: <strong>{{ kibiki }} кибиков</strong></p>
+
+    <div class="product-grid">
+        {% for product in products %}
+        <div class="product-card">
+            <img src="{{ product.image }}" alt="{{ product.name }}">
+            <div class="product-info">
+                <h4>{{ product.name }}</h4>
+                <p>{{ product.description }}</p>
+                <p class="price">{{ product.price }} кибиков</p>
+                {% if kibiki >= product.price %}
+                    <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn btn-success buy-btn" data-id="{{ product.id }}" data-price="{{ product.price }}">Купить</a>
+                {% else %}
+                    <span class="btn btn-danger" style="cursor: not-allowed;">Недостаточно</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
