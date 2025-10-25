@@ -4,6 +4,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import psycopg2
 from werkzeug.utils import secure_filename
 from psycopg2.extras import DictCursor
+from flask import send_from_directory
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
@@ -29,6 +30,14 @@ def get_db_connection():
 
 
 # ================== АВТОРИЗАЦИЯ ==================
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(app.root_path, 'static'),
+        'favicon.ico',
+        mimetype='image/x-icon'
+    )
 
 @app.route('/')
 def index():
