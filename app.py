@@ -2,12 +2,22 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import check_password_hash, generate_password_hash
 import psycopg2
+from werkzeug.utils import secure_filename
 from psycopg2.extras import DictCursor
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this-in-production'
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # лимит 5 МБ, можно менять
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 # Подключение к БД
+def allowed_file(filename: str) -> bool:
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+    )
+
 def get_db_connection():
     conn = psycopg2.connect(
         host="127.0.0.1",
@@ -88,12 +98,13 @@ def admin_products():
 
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=DictCursor)
-    cur.execute("SELECT id, name, price, image, description FROM products ORDER BY id;")
+    cur.execute("SELECT id, name, description, price, image FROM products ORDER BY id;")
     products_list = cur.fetchall()
     cur.close()
     conn.close()
 
     return render_template('admin_products.html', products=products_list)
+
 
 @app.route('/admin/products/create', methods=['POST'])
 def admin_create_product():
@@ -104,7 +115,24 @@ def admin_create_product():
     name = request.form['name']
     description = request.form.get('description', '')
     price = int(request.form['price'])
-    image = request.form.get('image', '')
+
+    # обработка файла
+    image_path = request.form.get('image', '').strip()  # резерв, если ввели URL вручную
+    file = request.files.get('image_file')
+
+    if file and file.filename != '':
+        if allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            upload_dir = app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_dir, exist_ok=True)
+            save_path = os.path.join(upload_dir, filename)
+            file.save(save_path)
+
+            # путь, который будет храниться в БД и использоваться в <img src=...>
+            image_path = f"/static/uploads/{filename}"
+        else:
+            flash("Неверный формат изображения. Разрешено: png, jpg, jpeg, gif, webp", "danger")
+            return redirect(url_for('admin_products'))
 
     if not name or price < 0:
         flash("Неверные данные товара.", "danger")
@@ -115,13 +143,90 @@ def admin_create_product():
     try:
         cur.execute(
             "INSERT INTO products (name, description, price, image) VALUES (%s, %s, %s, %s)",
-            (name, description, price, image)
+            (name, description, price, image_path)
         )
         conn.commit()
         flash("Товар добавлен!", "success")
     except Exception as e:
         conn.rollback()
         flash(f"Ошибка при добавлении товара: {str(e)}", "danger")
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect(url_for('admin_products'))
+
+
+@app.route('/admin/products/edit/<int:product_id>', methods=['POST'])
+def admin_edit_product(product_id):
+    if 'username' not in session or not session.get('is_admin'):
+        flash("Доступ запрещён.", "danger")
+        return redirect(url_for('login'))
+
+    name = request.form['name']
+    description = request.form.get('description', '')
+    price = int(request.form['price'])
+
+    # старое значение пути к картинке
+    current_image = request.form.get('current_image', '').strip()
+
+    # может прийти либо новый URL, либо загруженный файл
+    new_image_url = request.form.get('image', '').strip()
+    file = request.files.get('image_file')
+
+    final_image_path = current_image  # по умолчанию не меняем
+
+    # приоритет: если загрузили новый файл — используем его
+    if file and file.filename != '':
+        if allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            upload_dir = app.config['UPLOAD_FOLDER']
+            os.makedirs(upload_dir, exist_ok=True)
+            save_path = os.path.join(upload_dir, filename)
+            file.save(save_path)
+            final_image_path = f"/static/uploads/{filename}"
+        else:
+            flash("Неверный формат изображения. Разрешено: png, jpg, jpeg, gif, webp", "danger")
+            return redirect(url_for('admin_products'))
+    # если файла нет, но админ вписал новый URL руками — берём его
+    elif new_image_url:
+        final_image_path = new_image_url
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE products
+            SET name = %s, description = %s, price = %s, image = %s
+            WHERE id = %s
+        """, (name, description, price, final_image_path, product_id))
+        conn.commit()
+        flash("Товар обновлён!", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Ошибка при обновлении товара: {str(e)}", "danger")
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect(url_for('admin_products'))
+
+
+@app.route('/admin/products/delete/<int:product_id>', methods=['POST'])
+def admin_delete_product(product_id):
+    if 'username' not in session or not session.get('is_admin'):
+        flash("Доступ запрещён.", "danger")
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM products WHERE id = %s", (product_id,))
+        conn.commit()
+        flash("Товар удалён.", "info")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Ошибка при удалении товара: {str(e)}", "danger")
     finally:
         cur.close()
         conn.close()

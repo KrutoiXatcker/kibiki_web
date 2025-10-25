@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Управление товарами{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h1>🛍 Управление товарами</h1>
+
+  <h2>Добавить новый товар</h2>
+  <form method="POST"
+        action="{{ url_for('admin_create_product') }}"
+        class="product-form"
+        enctype="multipart/form-data">
+
+    <input type="text" name="name" placeholder="Название" required>
+    <input type="number" name="price" placeholder="Цена (кибики)" required>
+
+    <!-- Вариант 1: URL картинки -->
+    <input type="text" name="image" placeholder="URL картинки (необязательно)">
+
+    <!-- Вариант 2: Загрузить файл -->
+    <label style="font-size:0.9rem; color:#aaa;">или загрузить файл:</label>
+    <input type="file" name="image_file" accept=".png,.jpg,.jpeg,.gif,.webp">
+
+    <textarea name="description" placeholder="Описание"></textarea>
+
+    <button type="submit" class="btn btn-success">Добавить</button>
+  </form>
+
+  <hr style="margin:20px 0;">
+
+  <h2>Список товаров</h2>
+  <div class="product-grid">
+    {% for product in products %}
+    <div class="product-card">
+      <img src="{{ product.image }}" alt="{{ product.name }}" style="max-width:100%; border-radius:8px;">
+      <div class="product-info">
+        <h4>{{ product.name }}</h4>
+        <p>{{ product.description }}</p>
+        <p class="price">{{ product.price }} кибиков</p>
+
+        <form method="POST"
+              action="{{ url_for('admin_edit_product', product_id=product.id) }}"
+              class="edit-form"
+              enctype="multipart/form-data">
+
+          <input type="hidden" name="current_image" value="{{ product.image }}">
+
+          <label>Название</label>
+          <input type="text" name="name" value="{{ product.name }}" required>
+
+          <label>Цена</label>
+          <input type="number" name="price" value="{{ product.price }}" required>
+
+          <label>Текущее изображение</label>
+          <input type="text" name="image" value="{{ product.image }}">
+
+          <label style="font-size:0.9rem; color:#aaa;">или загрузить новое:</label>
+          <input type="file" name="image_file" accept=".png,.jpg,.jpeg,.gif,.webp">
+
+          <label>Описание</label>
+          <textarea name="description">{{ product.description }}</textarea>
+
+          <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+        </form>
+
+        <form method="POST"
+              action="{{ url_for('admin_delete_product', product_id=product.id) }}"
+              onsubmit="return confirm('Удалить товар {{ product.name }}?');">
+          <button type="submit" class="btn btn-danger" style="margin-top:10px;">🗑 Удалить</button>
+        </form>
+
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="margin-top:20px;">
+    <a href="{{ url_for('admin') }}" class="btn btn-secondary">⬅ Назад в админку</a>
+    <a href="{{ url_for('admin_purchases') }}" class="btn btn-info">📊 История покупок</a>
+  </div>
+</div>
+
+<style>
+.product-form input,
+.product-form textarea {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #1a1a1a;
+  color: #fff;
+}
+.edit-form input,
+.edit-form textarea {
+  width: 100%;
+  padding: 6px;
+  margin: 4px 0 10px 0;
+  border-radius: 6px;
+  border: 1px solid #bbb;
+  background: #1a1a1a;
+  color: #fff;
+}
+.product-card {
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 10px;
+  background: #1e1e1e;
+}
+.product-card h4 {
+  margin-bottom: 5px;
+}
+.product-card .price {
+  color: #4caf50;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+label {
+  font-size: 0.8rem;
+  color: #bbb;
+}
+</style>
+
+{% endblock %}

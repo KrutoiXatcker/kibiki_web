@@ -18,6 +18,13 @@
                     <a class="nav-link" href="{{ url_for('admin') }}">Админ</a>
                 {% endif %}
                 <a class="nav-link" href="{{ url_for('logout') }}">Выход</a>
+                <a href="{{ url_for('admin_products') }}" class="btn btn-primary">
+                  🛍 Управление товарами
+                </a>
+
+                <a href="{{ url_for('admin_purchases') }}" class="btn btn-info">
+                  📊 История покупок
+                </a>
                 <a class="btn btn-info" href="{{ url_for('admin_purchases') }}">📊 История покупок</a>
             </div>
         </div>
