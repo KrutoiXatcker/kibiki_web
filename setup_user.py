@@ -7,7 +7,7 @@ def create_admin_user():
         # Подключение к существующей базе данных
         conn = psycopg2.connect(
             host="127.0.0.1",
-            database="test2",
+            database="test2_utf8",
             user="jems",
             password="1111"
         )
@@ -71,7 +71,7 @@ def list_users():
     try:
         conn = psycopg2.connect(
             host="127.0.0.1",
-            database="test2",
+            database="test2_utf8",
             user="jems",
             password="1111"
         )

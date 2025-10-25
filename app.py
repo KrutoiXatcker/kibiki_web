@@ -11,7 +11,7 @@ app.secret_key = 'your-secret-key-change-this-in-production'
 def get_db_connection():
     conn = psycopg2.connect(
         host="127.0.0.1",
-        database="test2",
+        database="test2_utf8",
         user="jems",
         password="1111"
     )
@@ -71,51 +71,188 @@ def dashboard():
 
     return render_template('dashboard.html', kibiki=session['kibiki'], fullname=session['fullname'])
 
+@app.route('/admin/products')
+def admin_products():
+    if 'username' not in session or not session.get('is_admin'):
+        flash("Доступ запрещён.", "danger")
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=DictCursor)
+    cur.execute("SELECT id, name, price, image, description FROM products ORDER BY id;")
+    products_list = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return render_template('admin_products.html', products=products_list)
+
+
+@app.route('/admin/products/create', methods=['POST'])
+def admin_create_product():
+    if 'username' not in session or not session.get('is_admin'):
+        flash("Доступ запрещён.", "danger")
+        return redirect(url_for('login'))
+
+    name = request.form['name']
+    description = request.form.get('description', '')
+    price = int(request.form['price'])
+    image = request.form.get('image', '')
+
+    if not name or price < 0:
+        flash("Неверные данные товара.", "danger")
+        return redirect(url_for('admin_products'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO products (name, description, price, image) VALUES (%s, %s, %s, %s)",
+            (name, description, price, image)
+        )
+        conn.commit()
+        flash("Товар добавлен!", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Ошибка при добавлении товара: {str(e)}", "danger")
+    finally:
+        cur.close()
+        conn.close()
+
+    return redirect(url_for('admin_products'))
+
+
 @app.route('/products')
 def products():
     if 'username' not in session:
         return redirect(url_for('login'))
 
-    products_list = [
-        {"id": 1, "name": "Редкий котёнок", "price": 150, "image": "/static/images/cat.jpg", "description": "Милый котёнок, который будет следовать за тобой в реальности... или нет."},
-        {"id": 2, "name": "КриптоАкселератор", "price": 500, "image": "/static/images/crypto.jpg", "description": "Ускоряет твою жизнь в 2 раза (по словам производителя)."},
-        {"id": 3, "name": "Легендарная монета", "price": 1000, "image": "/static/images/coin.jpg", "description": "Историческая реликвия, найденная в подвале у бабушки."},
-        {"id": 4, "name": "Премиум стикерпак", "price": 300, "image": "/static/images/stickers.jpg", "description": "100 уникальных стикеров для WhatsApp."}
-    ]
-
-    return render_template('products.html', products=products_list, kibiki=session['kibiki'])
-
-@app.route('/buy/<int:product_id>', methods=['POST'])
-def buy_product(product_id):
-    if 'username' not in session:
-        return redirect(url_for('login'))
-
-    products_prices = {
-        1: 150,
-        2: 500,
-        3: 1000,
-        4: 300
-    }
-
-    price = products_prices.get(product_id)
-    if not price:
-        flash("Товар не найден.", "danger")
-        return redirect(url_for('products'))
-
-    if session['kibiki'] < price:
-        flash("Недостаточно кибиков!", "warning")
-        return redirect(url_for('products'))
-
     conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET kibiki = kibiki - %s WHERE username = %s", (price, session['username']))
-    conn.commit()
+    cur = conn.cursor(cursor_factory=DictCursor)
+    cur.execute("SELECT id, name, description, price, image FROM products ORDER BY id;")
+    products_list = cur.fetchall()
     cur.close()
     conn.close()
 
-    session['kibiki'] -= price
-    flash(f"Покупка успешна! Ты потратил {price} кибиков.", "success")
+    return render_template(
+        'products.html',
+        products=products_list,
+        kibiki=session['kibiki']
+    )
+
+@app.route('/purchases')
+def my_purchases():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    username = session['username']
+
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=DictCursor)
+    cur.execute("""
+        SELECT p.id,
+               pr.name AS product_name,
+               pr.image,
+               p.price_at_purchase,
+               p.created_at
+        FROM purchases p
+        JOIN products pr ON pr.id = p.product_id
+        WHERE p.username = %s
+        ORDER BY p.created_at DESC;
+    """, (username,))
+    purchases_list = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return render_template(
+        'purchases.html',
+        purchases=purchases_list,
+        kibiki=session['kibiki'],
+        fullname=session['fullname']
+    )
+
+
+@app.route('/buy/<int:product_id>', methods=['GET', 'POST'])
+def buy_product(product_id):
+    from flask import request  # на случай если сверху не импортировано
+
+    print("DEBUG buy_product:", request.method, product_id)
+
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    username = session['username']
+
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=DictCursor)
+
+    try:
+        # Получаем товар
+        cur.execute(
+            "SELECT id, name, price FROM products WHERE id = %s",
+            (product_id,)
+        )
+        product = cur.fetchone()
+        if not product:
+            flash("Товар не найден.", "danger")
+            cur.close()
+            conn.close()
+            return redirect(url_for('products'))
+
+        price = product['price']
+
+        # Блокируем строку пользователя и проверяем баланс
+        cur.execute(
+            "SELECT kibiki FROM users WHERE username = %s FOR UPDATE",
+            (username,)
+        )
+        user_row = cur.fetchone()
+        if not user_row:
+            flash("Пользователь не найден.", "danger")
+            cur.close()
+            conn.close()
+            return redirect(url_for('products'))
+
+        current_kibiki = user_row['kibiki']
+        if current_kibiki < price:
+            flash("Недостаточно кибиков!", "warning")
+            cur.close()
+            conn.close()
+            return redirect(url_for('products'))
+
+        # Списываем кибики
+        new_balance = current_kibiki - price
+        cur.execute(
+            "UPDATE users SET kibiki = %s WHERE username = %s",
+            (new_balance, username)
+        )
+
+        # Логируем покупку
+        cur.execute(
+            """
+            INSERT INTO purchases (username, product_id, price_at_purchase)
+            VALUES (%s, %s, %s)
+            """,
+            (username, product['id'], price)
+        )
+
+        conn.commit()
+
+        # Обновляем сессию
+        session['kibiki'] = new_balance
+
+        flash(f"Покупка успешна! Ты купил: {product['name']} за {price} кибиков.", "success")
+
+    except Exception as e:
+        conn.rollback()
+        flash(f"Ошибка при покупке: {str(e)}", "danger")
+    finally:
+        cur.close()
+        conn.close()
+
     return redirect(url_for('products'))
+
+
+
 
 # === АДМИН-ПАНЕЛЬ ===
 

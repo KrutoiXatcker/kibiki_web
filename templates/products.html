@@ -5,7 +5,9 @@
 {% block content %}
 <div class="card">
     <h1>🛍️ Магазин товаров</h1>
-    <p style="font-size: 1.5rem; color: #667eea; margin-bottom: 30px;">Ваш баланс: <strong>{{ kibiki }} кибиков</strong></p>
+    <p style="font-size: 1.5rem; color: #667eea; margin-bottom: 30px;">
+        Ваш баланс: <strong>{{ kibiki }} кибиков</strong>
+    </p>
 
     <div class="product-grid">
         {% for product in products %}
@@ -15,8 +17,18 @@
                 <h4>{{ product.name }}</h4>
                 <p>{{ product.description }}</p>
                 <p class="price">{{ product.price }} кибиков</p>
+
                 {% if kibiki >= product.price %}
-                    <a href="{{ url_for('buy_product', product_id=product.id) }}" class="btn btn-success buy-btn" data-id="{{ product.id }}" data-price="{{ product.price }}">Купить</a>
+                    <form method="post"
+                          action="{{ url_for('buy_product', product_id=product.id) }}"
+                          style="display:inline;">
+                        <button type="submit"
+                                class="btn btn-success buy-btn"
+                                data-id="{{ product.id }}"
+                                data-price="{{ product.price }}">
+                            Купить
+                        </button>
+                    </form>
                 {% else %}
                     <span class="btn btn-danger" style="cursor: not-allowed;">Недостаточно</span>
                 {% endif %}
