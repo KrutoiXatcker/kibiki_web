@@ -17,6 +17,9 @@ def get_db_connection():
     )
     return conn
 
+
+# ================== АВТОРИЗАЦИЯ ==================
+
 @app.route('/')
 def index():
     if 'username' in session:
@@ -54,6 +57,9 @@ def logout():
     flash('Вы вышли из системы.', 'info')
     return redirect(url_for('login'))
 
+
+# ================== КАБИНЕТ ПОЛЬЗОВАТЕЛЯ ==================
+
 @app.route('/dashboard')
 def dashboard():
     if 'username' not in session:
@@ -71,6 +77,9 @@ def dashboard():
 
     return render_template('dashboard.html', kibiki=session['kibiki'], fullname=session['fullname'])
 
+
+# ================== АДМИН: УПРАВЛЕНИЕ ТОВАРАМИ ==================
+
 @app.route('/admin/products')
 def admin_products():
     if 'username' not in session or not session.get('is_admin'):
@@ -85,7 +94,6 @@ def admin_products():
     conn.close()
 
     return render_template('admin_products.html', products=products_list)
-
 
 @app.route('/admin/products/create', methods=['POST'])
 def admin_create_product():
@@ -121,6 +129,8 @@ def admin_create_product():
     return redirect(url_for('admin_products'))
 
 
+# ================== МАГАЗИН (ОБЩЕДОСТУПНЫЕ ТОВАРЫ) ==================
+
 @app.route('/products')
 def products():
     if 'username' not in session:
@@ -138,6 +148,9 @@ def products():
         products=products_list,
         kibiki=session['kibiki']
     )
+
+
+# ================== ИСТОРИЯ ПОКУПОК ПОЛЬЗОВАТЕЛЯ ==================
 
 @app.route('/purchases')
 def my_purchases():
@@ -166,16 +179,46 @@ def my_purchases():
     return render_template(
         'purchases.html',
         purchases=purchases_list,
-        kibiki=session['kibiki'],
-        fullname=session['fullname']
+        kibiki=session.get('kibiki', 0),
+        fullname=session.get('fullname', username)
     )
 
 
+# ================== ИСТОРИЯ ПОКУПОК ДЛЯ АДМИНА ==================
+
+@app.route('/admin/purchases')
+def admin_purchases():
+    if 'username' not in session or not session.get('is_admin'):
+        flash("Доступ запрещён.", "danger")
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=DictCursor)
+    cur.execute("""
+        SELECT p.id,
+               p.username,
+               pr.name AS product_name,
+               p.price_at_purchase,
+               p.created_at
+        FROM purchases p
+        JOIN products pr ON pr.id = p.product_id
+        ORDER BY p.created_at DESC;
+    """)
+    purchases_all = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return render_template(
+        'admin_purchases.html',
+        purchases=purchases_all
+    )
+
+
+# ================== ПОКУПКА ТОВАРА ==================
+
 @app.route('/buy/<int:product_id>', methods=['GET', 'POST'])
 def buy_product(product_id):
-    from flask import request  # на случай если сверху не импортировано
-
-    print("DEBUG buy_product:", request.method, product_id)
+    from flask import request
 
     if 'username' not in session:
         return redirect(url_for('login'))
@@ -186,7 +229,7 @@ def buy_product(product_id):
     cur = conn.cursor(cursor_factory=DictCursor)
 
     try:
-        # Получаем товар
+        # 1. достаём товар
         cur.execute(
             "SELECT id, name, price FROM products WHERE id = %s",
             (product_id,)
@@ -200,7 +243,7 @@ def buy_product(product_id):
 
         price = product['price']
 
-        # Блокируем строку пользователя и проверяем баланс
+        # 2. читаем баланс пользователя с блокировкой
         cur.execute(
             "SELECT kibiki FROM users WHERE username = %s FOR UPDATE",
             (username,)
@@ -213,20 +256,21 @@ def buy_product(product_id):
             return redirect(url_for('products'))
 
         current_kibiki = user_row['kibiki']
+
         if current_kibiki < price:
             flash("Недостаточно кибиков!", "warning")
             cur.close()
             conn.close()
             return redirect(url_for('products'))
 
-        # Списываем кибики
+        # 3. списываем кибики
         new_balance = current_kibiki - price
         cur.execute(
             "UPDATE users SET kibiki = %s WHERE username = %s",
             (new_balance, username)
         )
 
-        # Логируем покупку
+        # 4. пишем историю в purchases
         cur.execute(
             """
             INSERT INTO purchases (username, product_id, price_at_purchase)
@@ -237,7 +281,7 @@ def buy_product(product_id):
 
         conn.commit()
 
-        # Обновляем сессию
+        # 5. обновляем сессию
         session['kibiki'] = new_balance
 
         flash(f"Покупка успешна! Ты купил: {product['name']} за {price} кибиков.", "success")
@@ -252,9 +296,7 @@ def buy_product(product_id):
     return redirect(url_for('products'))
 
 
-
-
-# === АДМИН-ПАНЕЛЬ ===
+# ================== АДМИН-ПАНЕЛЬ (ПОЛЬЗОВАТЕЛИ) ==================
 
 @app.route('/admin')
 def admin():
@@ -347,8 +389,6 @@ def edit_fullname():
 
     return redirect(url_for('admin'))
 
-# Функции управления кибиками (остаются без изменений)
-
 @app.route('/admin/add_kibiki', methods=['POST'])
 def add_kibiki():
     if 'username' not in session or not session.get('is_admin'):
@@ -431,6 +471,9 @@ def set_kibiki():
         conn.close()
 
     return redirect(url_for('admin'))
+
+
+# ================== RUN ==================
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}История покупок (админ){% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>📊 История покупок</h1>
+    <p style="font-size: 1rem; color:#999; margin-bottom:20px;">
+        Вы вошли как администратор.
+    </p>
+
+    {% if purchases|length == 0 %}
+        <p style="color:#888;">Покупок пока нет.</p>
+    {% else %}
+        <table style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+            <thead>
+                <tr style="text-align:left; border-bottom:1px solid #444;">
+                    <th style="padding:8px;">Пользователь</th>
+                    <th style="padding:8px;">Товар</th>
+                    <th style="padding:8px;">Цена</th>
+                    <th style="padding:8px;">Когда</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in purchases %}
+                <tr style="border-bottom:1px solid #333;">
+                    <td style="padding:8px; font-weight:600;">{{ p.username }}</td>
+                    <td style="padding:8px;">{{ p.product_name }}</td>
+                    <td style="padding:8px;">{{ p.price_at_purchase }} кибиков</td>
+                    <td style="padding:8px; color:#888;">{{ p.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <div style="margin-top:20px;">
+        <a href="{{ url_for('admin') }}" class="btn btn-secondary">⬅ Назад в админку</a>
+        <a href="{{ url_for('products') }}" class="btn btn-success">🛍 В магазин</a>
+    </div>
+</div>
+{% endblock %}

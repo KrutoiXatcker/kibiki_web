@@ -18,6 +18,7 @@
                     <a class="nav-link" href="{{ url_for('admin') }}">Админ</a>
                 {% endif %}
                 <a class="nav-link" href="{{ url_for('logout') }}">Выход</a>
+                <a class="btn btn-info" href="{{ url_for('admin_purchases') }}">📊 История покупок</a>
             </div>
         </div>
     </nav>
@@ -29,6 +30,7 @@
             <hr class="my-4">
             <p>Используй кибики для покупки крутых вещей в нашем магазине!</p>
             <a class="btn btn-primary btn-lg" href="{{ url_for('products') }}" role="button">Перейти в магазин</a>
+            <a class="btn btn-secondary" href="{{ url_for('my_purchases') }}">🧾 Мои покупки</a>
         </div>
     </div>
 

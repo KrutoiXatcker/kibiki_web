@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Мои покупки{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1>🧾 Мои покупки</h1>
+    <p style="font-size: 1.1rem; color: #667eea; margin-bottom: 20px;">
+        Покупатель: <strong>{{ fullname }}</strong><br>
+        Баланс: <strong>{{ kibiki }} кибиков</strong>
+    </p>
+
+    {% if purchases|length == 0 %}
+        <p style="color:#888;">Ты ещё ничего не купил.</p>
+    {% else %}
+        <div class="product-grid">
+            {% for p in purchases %}
+            <div class="product-card">
+                <img src="{{ p.image }}" alt="{{ p.product_name }}">
+                <div class="product-info">
+                    <h4>{{ p.product_name }}</h4>
+                    <p class="price">{{ p.price_at_purchase }} кибиков</p>
+                    <p style="font-size: 0.9rem; color:#888;">
+                        Куплено: {{ p.created_at }}
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div style="margin-top:20px;">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">⬅ В кабинет</a>
+        <a href="{{ url_for('products') }}" class="btn btn-success">🛍 В магазин</a>
+    </div>
+</div>
+{% endblock %}
